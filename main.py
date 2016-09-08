@@ -6,6 +6,7 @@ import os
 import fnmatch
 import time
 from docx import Document
+import sys
 import logging
 
 db = MySQLdb.connect("0.0.0.0", "root", "passw0rd", "netmap", charset="utf8", use_unicode=True, port=3306)
@@ -117,7 +118,8 @@ def parse_docx(f):
 
 
 def main():
-    for file_path in iterator('/home'):
+    path = sys.argv[1]
+    for file_path in iterator(path):
         parse_docx(file_path)
     start_time = time.time()
     while True:
