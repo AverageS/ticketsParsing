@@ -123,7 +123,7 @@ def main():
         parse_docx(file_path)
     start_time = time.time()
     while True:
-        for file_path in iterator('/home'):
+        for file_path in iterator(path):
             scan_and_send_new_tickets(start_time, file_path)
         time.sleep(600)
 
