@@ -95,9 +95,9 @@ def parse_table(table, format, uniq_columns):
 
 
 def parse_docx_and_send_to_db(f):
-    doc = Document(f)
-    format = ['ip', 'ip', 'port', 'string']
     try:
+        doc = Document(f)
+        format = ['ip', 'ip', 'port', 'string']
         data_rows = parse_table(doc.tables[1], format, (0,1,2))
         logging.debug('parsed succesfully %s' % f)
     except Exception as e:
@@ -123,7 +123,7 @@ def main():
     while True:
         for file_path in iterator(path):
             pass
-            ### maybe ignore old folders?
+            ### maybe  just ignore old folders?
             scan_and_send_new_tickets(start_time, file_path)
         time.sleep(600)
 
