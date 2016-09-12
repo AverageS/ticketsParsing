@@ -63,19 +63,23 @@ def send_to_database(data_row, format, table_data_list):
     except:
         db.rollback()
         logging.error(send_str)
+        raise FirstParseErrorException
 
 #send_to_database([u'192.168.18.13', u'yoba2', u'some_yoba'], [u'ip', u'string', u'string'], [u'src_ip', u'str1',u'str2', u'netmap2'])
 
 def parse_table(table, format, uniq_columns):
     answer = []
-    for i, row in enumerate(table.rows[2:]):
+    for i, row in enumerate(table.rows[1:]):
         data = [[] for x in range(len(format))]
         for index, el in enumerate(row.cells):
             if index >= len(format) or el.text in ['',u'']:
                 break
             #TODO Remove uniq_columns, add uniq column check
             if index in uniq_columns:
-                data[index].extend(re.findall(FORMAT_TO_REG_MATCH[format[index]],el.text))
+                found_arr = re.findall(FORMAT_TO_REG_MATCH[format[index]],el.text)
+                if found_arr == []:
+                    break
+                data[index].extend(found_arr)
             else:
                 data[index].extend([el.text])
         data_rows = [[]]
@@ -100,10 +104,15 @@ def parse_docx_and_send_to_db(f):
         logging.error(str(e) + '\n %s ' % f)
         return
     for row in data_rows:
-        send_to_database(row, format,['src_ip', 'dst_ip', 'dst_port', 'comment', 'netmap'])
+        if len(row) < len(format):
+            break
+        try:
+            send_to_database(row, format,['src_ip', 'dst_ip', 'dst_port', 'comment', 'netmap'])
+        except:
+            pass
 
 
-parse_docx_and_send_to_db('/home/mikhail/Desktop/tickets/Заявка на предоставление сетевой связности Ямало Ненецкого АО_2866.docx')
+parse_docx_and_send_to_db('/home/mikhail/Desktop/tickets/Заявка+на+предоставление+сетевой+связности Patrol_415.docx')
 
 
 def main():
