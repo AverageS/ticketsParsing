@@ -6,6 +6,7 @@ import MySQLdb
 import os
 import fnmatch
 import time
+import itertools
 from docx import Document
 import sys
 import logging
@@ -70,6 +71,10 @@ def parse_table(table, format):
                 break
             data[index].extend(found_arr)
         data_rows = [[]]
+        start_time = time.time()
+        prod = [x in itertools.product(data)]
+        iter_time = time.time() - start_time
+        start_time = time.time()
         for index, cell_data in enumerate(data):
             if len(cell_data) == 1:
                 map(lambda x: x.insert(index, cell_data[0]), data_rows)
@@ -77,6 +82,7 @@ def parse_table(table, format):
                 old_data_rows = data_rows[-1]
                 data_rows = []
                 data_rows.extend(map(lambda x: my_insert(old_data_rows, index, x), cell_data))
+        lam_time = time.time() - start_time
         answer.extend(data_rows)
     return [x for x in answer if x != []]
 
@@ -90,9 +96,11 @@ def parse_docx_and_send_to_db(f, format, table_number):
         raise ParseErrorException
     for row in data_rows:
         if len(row) < len(format):
-            break
+            continue
         try:
-            send_to_database(row, format,['src_ip', 'dst_ip', 'dst_port', 'comment', 'netmap'])
+            ticket_name = f.split('/')[-2]
+            row.append(ticket_name)
+            send_to_database(row, format,['src_ip', 'dst_ip', 'dst_port', 'comment', 'ticket_name' 'netmap'])
         except:
             raise ParseErrorException
 
@@ -113,7 +121,7 @@ def scan_and_send_new_tickets(time_float, path, format, table_number):
 
 def main():
     path = sys.argv[1]
-    format = ['ip', 'ip', 'port', 'string']
+    format = ['ip', 'ip', 'port', 'string', 'string'] # !!! last string for ticket_name
     scan_and_send_new_tickets(0,  path, format, table_number=1)
     while True:
         start_time = time.time()
