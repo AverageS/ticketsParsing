@@ -1,3 +1,4 @@
+# -*- coding: utf8 -*-
 import re
 import os
 import fnmatch
@@ -5,6 +6,7 @@ from elasticsearch import Elasticsearch
 import json
 import time
 from docx import Document
+from mapping_creation import create_mapping
 import sys
 import logging
 
@@ -23,13 +25,15 @@ def iterator(path):
         for f in fnmatch.filter(files, '*.docx'):
             yield '/'.join([dirpath,f])
 
-FORMAT = ['ip', 'ip', 'port', 'string', 'string']
+FORMAT = ['ip', 'ip', 'port', 'string']
+FORMAT_NAMES = ['ip_host', 'ip_dest', 'port_dest', 'declaration']
 
 FORMAT_TO_REG_MATCH = {
     'ip': r'\d+\.\d+\.\d+\.\d+',
     'string': r'.*',
     'port': r'\d+',
 }
+
 
 def parse_table(table, format):
     answer = []
@@ -51,7 +55,6 @@ def parse_table(table, format):
                 data_rows = []
                 data_rows.extend(map(lambda x: my_insert(old_data_rows, index, x), cell_data))
         answer.extend(data_rows)
-    []
     return [x for x in answer if len(x) == len(format)]
 
 
@@ -64,24 +67,29 @@ def scan_and_send_new_tickets(time_float, path):
         try:
             doc = Document(file_path)
             ticket_name = file_path.split('/')[-2]
-            data = parse_table(doc.tables[1], FORMAT)
+            data = parse_table(doc.tables[1], FORMAT) #TODO мб убрать номер таблицы в аргументы?
             if len(data) == 0:
                 continue
             data.append(ticket_name)
             success_count += 1
-
-            tttt = json.dumps([]data)
-            es.index(index='tickets', doc_type='first_table',body=json.dumps(data))
+            time_to_add =  int(round(doc_creation_date * 1000))
+            my_dicts = []
+            [my_dicts.append(dict([tpl for tpl in zip(FORMAT_NAMES, x)])) for x in data]
+            [el.update([('dateAdded', time_to_add)]) for el in my_dicts]
+            b = unicode(json.dumps(my_dicts[:-1]))
+            for el in my_dicts:
+                es.index(index='tickets', doc_type='first_table',body=unicode(json.dumps(el)))
         except Exception as e:
             pass
     logging.info('ALL %d \nSUCCESSFULL %d', index, success_count)
 
 def main():
     path = '/home/mikhail'
+    create_mapping(es, 'tickets')
     scan_and_send_new_tickets(0,  path)
     while True:
         start_time = time.time()
-        scan_and_send_new_tickets(start_time, path, format, table_number=1)
+        scan_and_send_new_tickets(start_time, path)
         time.sleep(600)
 
 if __name__ == '__main__':
