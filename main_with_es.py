@@ -7,6 +7,8 @@ import json
 import time
 from docx import Document
 from mapping_creation import create_mapping
+import networksConstants
+import netaddr
 import sys
 import logging
 
@@ -33,6 +35,7 @@ FORMAT_TO_REG_MATCH = {
     'string': r'.*',
     'port': r'\d+',
 }
+
 
 
 def parse_table(table, format):
@@ -76,8 +79,20 @@ def scan_and_send_new_tickets(time_float, path):
             my_dicts = []
             [my_dicts.append(dict([tpl for tpl in zip(FORMAT_NAMES, x)])) for x in data]
             [el.update([('dateAdded', time_to_add)]) for el in my_dicts]
+
             b = unicode(json.dumps(my_dicts[:-1]))
             for el in my_dicts:
+                try:
+                    src_ip = netaddr.IPAddress(el['ip_host'])
+                    dst_ip = netaddr.IPAddress(el['ip_dest'])
+                except:
+                    continue
+                el['dst_network'] = 'UNKNOWN'
+                #TODO ПЕРЕПИСАТЬ НА СЕТЫ СРОЧНО
+                for cod_name, cod in networksConstants.NETWORKS_DICT.iteritems():
+                    for network in cod:
+                        if dst_ip in network:
+                            el['dst_network'] = cod_name
                 es.index(index='tickets', doc_type='first_table',body=unicode(json.dumps(el)))
         except Exception as e:
             pass
