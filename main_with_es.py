@@ -12,9 +12,6 @@ import netaddr
 import sys
 import logging
 
-#TODO Доделать маппинг к ES, сейчас отправляются голые массивы [ip, ip, string]
-#TODO нужно отправлять словари {ip: ip, ip: ip, string: str}
-
 def my_insert(arr, index, el):
     ans = list(arr)
     ans.insert(index, el)
