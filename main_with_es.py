@@ -18,7 +18,7 @@ def my_insert(arr, index, el):
     return ans
 
 networksConstants.main()
-es = Elasticsearch([{'host': 'localhost', 'port': 9200}])
+es = Elasticsearch([{'host': 'elasticsearch', 'port': 9200}])
 
 def iterator(path):
     for dirpath, dirnames, files in os.walk(path):
@@ -60,6 +60,17 @@ def parse_table(table, format):
     return [x for x in answer if len(x) == len(format)]
 
 
+#мб вернуться к супер-решению в parse_table, но наврятли
+def parse_first_table(table):
+    data_rows = []
+    for row in table.rows[1:]:
+        for srcip in re.findall(r'\d+\.\d+\.\d+\.\d+', row.cells[0].text):
+            for dstip in re.findall(r'\d+\.\d+\.\d+\.\d+', row.cells[1].text):
+                for dstport in re.findall(r'\d+', row.cells[2].text):
+                    data_rows.append([srcip, dstip,dstport,row.cells[3].text])
+    return data_rows
+
+
 def scan_and_send_new_tickets(time_float, path):
     success_count = 0
     all = 0
@@ -67,25 +78,21 @@ def scan_and_send_new_tickets(time_float, path):
         last_folder = file_path.split('/')[-2]
         ticket_type = last_folder[:3]
         ticket_number = last_folder[3:]
-        if ticket_type not in ('INC'):
-            continue
+        if ticket_type not in ('INC', 'CRQ'):
+            ticket_type = 'CRQ'
         doc_creation_date = os.path.getmtime(file_path)
         if doc_creation_date < time_float:
             continue
         all +=1
         try:
             doc = Document(file_path)
-            ticket_name = file_path.split('/')[-2]
-            data = parse_table(doc.tables[1], FORMAT) #TODO мб убрать номер таблицы в аргументы?
+            data = parse_first_table(doc.tables[1])
             if len(data) == 0:
                 continue
-            data.append(ticket_name)
             success_count += 1
             time_to_add =  int(round(doc_creation_date * 1000))
-            my_dicts = []
-            [my_dicts.append(dict([tpl for tpl in zip(FORMAT_NAMES, x)])) for x in data]
+            my_dicts = [(dict([tpl for tpl in zip(FORMAT_NAMES, x)])) for x in data]
             [el.update([('dateAdded', time_to_add)]) for el in my_dicts]
-            b = unicode(json.dumps(my_dicts[:-1]))
             ports_desc = {22:'ssh', 20:'ftp',21:'ftp',1433:'sql',3389:'RDP'}
             for el in my_dicts:
                 try:
@@ -93,17 +100,15 @@ def scan_and_send_new_tickets(time_float, path):
                     dst_ip = netaddr.IPAddress(el['ip_dest'])
                 except:
                     continue
-                el['dst_network'] = 'UNKNOWN'
-                el['port_desc'] = 'UNKNOWN PORT'
-                el['ticket_type'] = ticket_type
-                el['ticket_number'] = ticket_number
+                el['dst_network'] = u'UNKNOWN'
+                el['port_desc'] = u'UNKNOWN PORT'
+                el['ticket_type'] = unicode(ticket_type)
+                el['ticket_number'] = index
                 port = int(el['port_dest'])
-                el['ip_port_triple'] = ':'.join(list(map(str, [src_ip, dst_ip, port])))
-                print(el['ip_port_triple'])
+                el['ip_port_triple'] = unicode(':'.join(list(map(str, [src_ip, dst_ip, port]))))
                 if port in ports_desc.keys():
                     el['port_desc'] = ports_desc[port]
-
-                #TODO ПЕРЕПИСАТЬ НА СЕТЫ СРОЧНО
+                #TODO переписать на сеты
                 for cod_name, cod in networksConstants.MAIN_DICT.iteritems():
                     for network in cod:
                         if dst_ip in network:
@@ -114,7 +119,7 @@ def scan_and_send_new_tickets(time_float, path):
     logging.info('ALL %d \nSUCCESSFULL %d', all, success_count)
 
 def main():
-    path = '/home/mikhail/Desktop/tickets/'
+    path = '/usr/share/tickets'
     create_mapping(es, 'tickets')
     scan_and_send_new_tickets(0,  path)
     while True:
@@ -124,6 +129,6 @@ def main():
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO,format='%(asctime)s - %(levelname)s - %(message)s')
-    #es.indices.delete(index='tickets')
+    es.indices.delete(index='tickets')
     main()
 
