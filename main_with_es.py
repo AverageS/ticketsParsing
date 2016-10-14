@@ -16,7 +16,8 @@ def my_insert(arr, index, el):
     ans = list(arr)
     ans.insert(index, el)
     return ans
-
+#TODO убрать в декоратор
+time.sleep(45)
 networksConstants.main()
 es = Elasticsearch([{'host': 'elasticsearch', 'port': 9200}])
 
@@ -70,7 +71,7 @@ def parse_first_table(table):
                     data_rows.append([srcip, dstip,dstport,row.cells[3].text])
     return data_rows
 
-
+#TODO разбить эту функцию на несколько:  |проверка имени файла -> парсинг таблицы -> форматирование вывода -> загрузка|
 def scan_and_send_new_tickets(time_float, path):
     success_count = 0
     all = 0
@@ -78,8 +79,10 @@ def scan_and_send_new_tickets(time_float, path):
         last_folder = file_path.split('/')[-2]
         ticket_type = last_folder[:3]
         ticket_number = last_folder[3:]
+
         if ticket_type not in ('INC', 'CRQ'):
             ticket_type = 'CRQ'
+            ticket_number = -1
         doc_creation_date = os.path.getmtime(file_path)
         if doc_creation_date < time_float:
             continue
