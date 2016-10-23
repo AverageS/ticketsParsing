@@ -16,10 +16,13 @@ def my_insert(arr, index, el):
     ans = list(arr)
     ans.insert(index, el)
     return ans
-#TODO убрать в декоратор
-time.sleep(45)
+
+es = Elasticsearch([{'host': 'localhost', 'port': 9200}])
+while not es.ping():
+    logging.error("Cannot connect to ES")
+    time.sleep(2)
+
 networksConstants.main()
-es = Elasticsearch([{'host': 'elasticsearch', 'port': 9200}])
 
 def iterator(path):
     for dirpath, dirnames, files in os.walk(path):
@@ -79,7 +82,6 @@ def scan_and_send_new_tickets(time_float, path):
         last_folder = file_path.split('/')[-2]
         ticket_type = last_folder[:3]
         ticket_number = last_folder[3:]
-
         if ticket_type not in ('INC', 'CRQ'):
             ticket_type = 'CRQ'
             ticket_number = -1
@@ -91,7 +93,7 @@ def scan_and_send_new_tickets(time_float, path):
             doc = Document(file_path)
             data = parse_first_table(doc.tables[1])
             if len(data) == 0:
-                continue
+                raise Exception()
             success_count += 1
             time_to_add =  int(round(doc_creation_date * 1000))
             my_dicts = [(dict([tpl for tpl in zip(FORMAT_NAMES, x)])) for x in data]
@@ -106,7 +108,7 @@ def scan_and_send_new_tickets(time_float, path):
                 el['dst_network'] = u'UNKNOWN'
                 el['port_desc'] = u'UNKNOWN PORT'
                 el['ticket_type'] = unicode(ticket_type)
-                el['ticket_number'] = index
+                el['ticket_number'] = ticket_number
                 port = int(el['port_dest'])
                 el['ip_port_triple'] = unicode(':'.join(list(map(str, [src_ip, dst_ip, port]))))
                 if port in ports_desc.keys():
@@ -122,9 +124,10 @@ def scan_and_send_new_tickets(time_float, path):
     logging.info('ALL %d \nSUCCESSFULL %d', all, success_count)
 
 def main():
-    path = '/usr/share/tickets'
+    path = '/home/mikhail/Desktop/tickets/'
     create_mapping(es, 'tickets')
-    scan_and_send_new_tickets(0,  path)
+    if '--scan_all' in sys.argv:
+        scan_and_send_new_tickets(0,  path)
     while True:
         start_time = time.time()
         scan_and_send_new_tickets(start_time, path)
@@ -132,6 +135,5 @@ def main():
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO,format='%(asctime)s - %(levelname)s - %(message)s')
-    es.indices.delete(index='tickets')
     main()
 
