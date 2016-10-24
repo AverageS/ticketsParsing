@@ -17,7 +17,7 @@ def my_insert(arr, index, el):
     ans.insert(index, el)
     return ans
 
-es = Elasticsearch([{'host': 'localhost', 'port': 9200}])
+es = Elasticsearch([{'host': 'elasticsearch', 'port': 9200}])
 while not es.ping():
     logging.error("Cannot connect to ES")
     time.sleep(2)
