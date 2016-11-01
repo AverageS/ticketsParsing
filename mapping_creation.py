@@ -25,7 +25,8 @@ MAPPING = {
             }
             ],
             "properties": {
-                "dateAdded": { "type": "date"},
+                "doc_creation_date": { "type": "date"},
+                "added_time":  { "type": "date"},
                 "ip_host": {"type" : "ip"},
                 "ip_dest": {"type" : "ip"},
                 "port_dest": {"type" : "integer"},
@@ -34,6 +35,10 @@ MAPPING = {
     }
 }
 def create_mapping(es_instance, index_name):
+    try:
+        es.indices.delete(index=index_name)
+    except:
+        pass
     es_instance.indices.create(index=index_name, ignore=400, body=MAPPING)
 
 if __name__ == "__main__":

@@ -1,135 +1,81 @@
-#!/usr/bin/python
-# -*- coding: utf8 -*-
-#96 lines of code
 import re
-import MySQLdb
 import os
 import fnmatch
+from elasticsearch import Elasticsearch
 import time
-import itertools
 from docx import Document
+from mapping_creation import create_mapping
+import networks
+import netaddr
 import sys
 import logging
 
-db = MySQLdb.connect("0.0.0.0", "root", "passw0rd", "netmap", charset="utf8", use_unicode=True, port=3306)
-cursor = db.cursor()
 
-class ParseErrorException(Exception):
-    pass
+FORMAT_NAMES = ['ip_host', 'ip_dest', 'port_dest', 'declaration']
 
-
-def my_insert(arr, index, el):
-    ans = list(arr)
-    ans.insert(index, el)
-    return ans
-
+es = Elasticsearch([{'host': 'localhost', 'port': 9200}])
+def parse_first_table(table):
+    data_rows = []
+    for row in table.rows[1:]:
+        for srcip in re.findall(r'\d+\.\d+\.\d+\.\d+', row.cells[0].text):
+            for dstip in re.findall(r'\d+\.\d+\.\d+\.\d+', row.cells[1].text):
+                for dstport in re.findall(r'\d+', row.cells[2].text):
+                    data_rows.append([srcip, dstip,dstport,row.cells[3].text])
+    return data_rows
 
 def iterator(path):
     for dirpath, dirnames, files in os.walk(path):
         for f in fnmatch.filter(files, '*.docx'):
             yield '/'.join([dirpath,f])
 
+def get_file_info(filename):
+    last_folder = filename.split('/')[-2]
+    ticket_type = last_folder[:3]
+    ticket_number = last_folder[3:]
+    doc_creation_date = os.path.getmtime(filename)
+    return [ticket_type, ticket_number, doc_creation_date]
 
-FORMAT_TO_REG_MATCH = {
-    'ip': r'\d+\.\d+\.\d+\.\d+',
-    'string': r'.*',
-    'port': r'\d+',
-}
+def format_table(table, filename):
+    dict_table = [dict([tpl for tpl in zip(FORMAT_NAMES, row)]) for row in table]
+    ticket_type, ticket_number, doc_creation_date = get_file_info(filename)
+    [el.update([('doc_creation_date', int(round(doc_creation_date*1000))),('added_time', int(round(time.time()*1000)))]) for el in dict_table]
+    for el in dict_table:
+        src_ip = netaddr.IPAddress(el['ip_host'])
+        dst_ip = netaddr.IPAddress(el['ip_dest'])
+        el['dst_network'] = networks.check(dst_ip) or 'UNKNOWN'
+        el['ticket_type'] = ticket_type
+        el['ticket_number'] = ticket_number
+        port = int(el['port_dest'])
+        el['ip_port_triple'] = ':'.join(list(map(str, [src_ip, dst_ip, port])))
+        el['filename'] = filename
+    return dict_table
 
-FORMAT_TO_DATABASE = {
-    'ip': "inet_aton('%s')",
-    'port': '%s',
-    'string': "'%s'",
-}
 
-def send_to_database(data_row, format, table_data_list):
-    send_str = 'INSERT INTO %s ( ' % table_data_list[-1]
-    for i, el in enumerate(data_row):
-        send_str += table_data_list[i] + ', '
-    send_str = send_str[:-2] +  " ) VALUES ( "
-    for i, el in enumerate(data_row):
-        send_str += FORMAT_TO_DATABASE[format[i]] + ","
-    send_str = (send_str[:-1] + ')') % tuple(data_row)
+
+def scan_doc(filename):
     try:
-        cursor.execute(send_str)
-        db.commit()
+        doc = Document(filename)
+        table = parse_first_table(doc.tables[1])
+        dict_to_send_to_el = format_table(table,filename)
+        for el in dict_to_send_to_el:
+            es.index(index='tickets', doc_type='first_table', body=el)
     except Exception as e:
-        db.rollback()
-        logging.error(send_str)
-        raise e
-
-
-def parse_table(table, format):
-    answer = []
-    for i, row in enumerate(table.rows[1:]):
-        data = [[] for x in range(len(format))]
-        for index, el in enumerate(row.cells):
-            if index >= len(format) or el.text in ['',u'']:
-                break
-            found_arr = re.findall(FORMAT_TO_REG_MATCH[format[index]],el.text)
-            if found_arr == []:
-                break
-            data[index].extend(found_arr)
-        data_rows = [[]]
-        start_time = time.time()
-        prod = [x in itertools.product(data)]
-        iter_time = time.time() - start_time
-        start_time = time.time()
-        for index, cell_data in enumerate(data):
-            if len(cell_data) == 1:
-                map(lambda x: x.insert(index, cell_data[0]), data_rows)
-            elif len(cell_data) > 1:
-                old_data_rows = data_rows[-1]
-                data_rows = []
-                data_rows.extend(map(lambda x: my_insert(old_data_rows, index, x), cell_data))
-        lam_time = time.time() - start_time
-        answer.extend(data_rows)
-    return [x for x in answer if x != []]
-
-def parse_docx_and_send_to_db(f, format, table_number):
-    try:
-        doc = Document(f)
-        data_rows = parse_table(doc.tables[table_number], format)
-        logging.debug('parsed succesfully %s' % f)
-    except Exception as e:
-        logging.error(str(e) + '\n %s ' % f)
-        raise ParseErrorException
-    for row in data_rows:
-        if len(row) < len(format):
-            continue
-        try:
-            ticket_name = f.split('/')[-2]
-            row.append(ticket_name)
-            send_to_database(row, format,['src_ip', 'dst_ip', 'dst_port', 'comment', 'ticket_name' 'netmap'])
-        except:
-            raise ParseErrorException
-
-#TODO переписать через декораторы
-def scan_and_send_new_tickets(time_float, path, format, table_number):
-    success_count = 0
-    for index, file_path in enumerate(iterator(path)):
-        doc_creation_date = os.path.getmtime(file_path)
-        if doc_creation_date < time_float:
-            continue
-        try:
-            parse_docx_and_send_to_db(file_path, format, table_number)
-            success_count += 1
-        except ParseErrorException:
-            pass
-    logging.info('ALL %d \nSUCCESSFULL %d', index, success_count)
-
-
-def main():
-    path = sys.argv[1]
-    format = ['ip', 'ip', 'port', 'string', 'string'] # !!! last string for ticket_name
-    scan_and_send_new_tickets(0,  path, format, table_number=1)
-    while True:
-        start_time = time.time()
-        scan_and_send_new_tickets(start_time, path, format, table_number=1)
-        time.sleep(600)
+        es.index(index='tickets', doc_type='first_table', body={'error': True, 'doc_name': filename})
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO,format='%(asctime)s - %(levelname)s - %(message)s')
-    main()
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    create_mapping(es, 'tickets')
+    #path = '/usr/share/tickets'
+    if '--scan_all' in sys.argv:
+        for x in iterator('/home/mikhail/Desktop/tickets/'):
+            scan_doc(x)
+    start_time = time.time() - 86400
+    while True:
+        for x in iterator('/home/mikhail/Desktop/tickets/'):
+            if get_file_info(x)[2] > start_time:
+                scan_doc(x)
+        start_time = time.time() - 86400
 
-db.close()
+
+
+
