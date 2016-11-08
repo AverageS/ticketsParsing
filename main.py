@@ -54,15 +54,13 @@ def format_table(table, filename):
         el['filename'] = filename
     return dict_table
 
-
-ERRORS_FILES = []
-
 def error_catching(func):
     def wrapper(filename):
         try:
             func(filename)
+            logging.info(filename + '\t sent')
         except Exception as e:
-            ERRORS_FILES.append(filename)
+            logging.error(filename + '\t crashed')
     return wrapper
 
 @error_catching
