@@ -40,11 +40,9 @@ def format_table(table, filename):
     ticket_type, ticket_number, doc_creation_date = get_file_info(filename)
     [el.update([('doc_creation_date', int(round(doc_creation_date*1000))),('added_time', int(round(time.time()*1000)))]) for el in dict_table]
     for el in dict_table:
-        el['ip_host']
         src_ip_network = netaddr.IPNetwork(el['ip_host'])
         dst_ip_network = netaddr.IPNetwork(el['ip_dest'])
-        src_ip = src_ip_network.ip
-        dst_ip = dst_ip_network.ip
+        src_ip, dst_ip = src_ip_network.ip, dst_ip_network.ip
         el['ip_host'], el['ip_dest'] = str(src_ip), str(dst_ip)
         el['host_network'], el['dst_network'] = str(src_ip_network), str(dst_ip_network)
         el['dst_network_description'] = networks.check(dst_ip_network) or 'UNKNOWN'
@@ -60,8 +58,9 @@ def error_catching(func):
             func(filename)
             logging.info(filename + '\t sent')
         except Exception as e:
-            logging.error(filename + '\t crashed')
+            logging.error(str(e))
     return wrapper
+
 
 @error_catching
 def scan_doc(filename):
@@ -73,7 +72,7 @@ def scan_doc(filename):
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
     create_mapping(es, 'tickets')
     path = '/usr/share/tickets'
     names_list = set()
