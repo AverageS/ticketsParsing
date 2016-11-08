@@ -58,7 +58,7 @@ def error_catching(func):
             func(filename)
             logging.info(filename + '\t sent')
         except Exception as e:
-            logging.error(str(e))
+            logging.error('\t'.join([filename, str(e)]))
     return wrapper
 
 
