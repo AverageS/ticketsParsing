@@ -47,7 +47,6 @@ def format_table(table, filename):
         el['host_network'], el['dst_network'] = str(src_ip_network), str(dst_ip_network)
         el['dst_network_description'] = networks.check(dst_ip_network) or 'UNKNOWN'
         el['ticket_type'], el['ticket_number'] = ticket_type, ticket_number
-        el['ticket_type'], el['ticket_number'] = 'NON DETERMINED', '-1'
         port = int(el['port_dest'])
         el['ip_port_triple'] = ':'.join(list(map(str, [src_ip, dst_ip, port])))
     return dict_table
