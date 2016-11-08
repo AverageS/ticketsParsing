@@ -47,9 +47,9 @@ def format_table(table, filename):
         el['host_network'], el['dst_network'] = str(src_ip_network), str(dst_ip_network)
         el['dst_network_description'] = networks.check(dst_ip_network) or 'UNKNOWN'
         el['ticket_type'], el['ticket_number'] = ticket_type, ticket_number
+        el['ticket_type'], el['ticket_number'] = 'NON DETERMINED', '-1'
         port = int(el['port_dest'])
         el['ip_port_triple'] = ':'.join(list(map(str, [src_ip, dst_ip, port])))
-        el['filename'] = filename
     return dict_table
 
 def error_catching(func):
@@ -68,25 +68,33 @@ def scan_doc(filename):
     table = parse_first_table(doc.tables[1])
     dict_to_send_to_el = format_table(table,filename)
     for el in dict_to_send_to_el:
-        es.index(index='tickets', doc_type='first_table', body=el)
+        try:
+            es.index(index='tickets', doc_type='first_table', body=el)
+        except:
+            el['declaration'] = 'Codec error'
+            el['ticket_type'], el['ticket_number'] = 'NON DETERMINED', '-1'
+            es.index(index='tickets', doc_type='first_table', body=el)
 
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
-    create_mapping(es, 'tickets')
     path = '/usr/share/tickets'
     names_list = set()
     if '--scan_all' in sys.argv:
+        create_mapping(es, 'tickets')
         for x in iterator(path):
             scan_doc(x)
             names_list.add(x)
-    while True:
+        while True:
+            for x in iterator(path):
+                if x not in names_list:
+                    scan_doc(x)
+                    names_list.add(x)
+            time.sleep(600)
+    else:
+        start_time = time.time()
         for x in iterator(path):
-            if x not in names_list:
+            if get_file_info(x)[2] > start_time and x not in names_list:
                 scan_doc(x)
                 names_list.add(x)
         time.sleep(600)
-
-
-
-
