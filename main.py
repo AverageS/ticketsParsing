@@ -77,7 +77,7 @@ def scan_doc(filename):
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
-    path = '/usr/share/tickets'
+    path = '/home/mikhail/Desktop/tickets'
     names_list = set()
     if '--scan_all' in sys.argv:
         create_mapping(es, 'tickets')
@@ -92,8 +92,9 @@ if __name__ == '__main__':
             time.sleep(600)
     else:
         start_time = time.time()
-        for x in iterator(path):
-            if get_file_info(x)[2] > start_time and x not in names_list:
-                scan_doc(x)
-                names_list.add(x)
-        time.sleep(600)
+        while True:
+            for x in iterator(path):
+                if get_file_info(x)[2] > start_time and x not in names_list:
+                    scan_doc(x)
+                    names_list.add(x)
+            time.sleep(1)
