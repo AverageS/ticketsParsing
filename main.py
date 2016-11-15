@@ -20,7 +20,7 @@ def parse_first_table(table):
         for srcip in re.findall(r'\d+\.\d+\.\d+\.\d+/\d{2}|\d+\.\d+\.\d+\.\d+', row.cells[0].text):
             for dstip in re.findall(r'\d+\.\d+\.\d+\.\d+/\d{2}|\d+\.\d+\.\d+\.\d+', row.cells[1].text):
                 for dstport in re.findall(r'\d+', row.cells[2].text):
-                    data_rows.append([srcip, dstip,dstport,row.cells[3].text])
+                    data_rows.append([srcip, dstip,dstport,row.cells[3].text.encode('utf-8', 'surrogateescape').decode('utf-8', 'surrogateescape')])
     return data_rows
 
 def iterator(path):
@@ -30,8 +30,10 @@ def iterator(path):
 
 def get_file_info(filename):
     last_folder = filename.split('/')[-2]
-    ticket_type = last_folder[:3]
-    ticket_number = last_folder[3:]
+    ticket_type = last_folder[:3].encode('utf-8', 'surrogateescape').decode('utf8','surrogateescape')
+    ticket_number = last_folder[3:].encode('utf-8', 'surrogateescape').decode('utf8','surrogateescape')
+#    ticket_type = last_folder[:3]
+#    ticket_number = last_folder[3:]
     doc_creation_date = os.path.getmtime(filename)
     return [ticket_type, ticket_number, doc_creation_date]
 
@@ -64,20 +66,21 @@ def error_catching(func):
 @error_catching
 def scan_doc(filename):
     doc = Document(filename)
-    table = parse_first_table(doc.tables[1])
+    try:
+        table = parse_first_table(doc.tables[1])
+    except:
+        return
     dict_to_send_to_el = format_table(table,filename)
     for el in dict_to_send_to_el:
         try:
             es.index(index='tickets', doc_type='first_table', body=el)
         except:
-            el['declaration'] = 'Codec error'
-            el['ticket_type'], el['ticket_number'] = 'NON DETERMINED', '-1'
+            el['ticket_type'], el['ticket_number'] = 'CRQ', '0000000'
             es.index(index='tickets', doc_type='first_table', body=el)
-
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
-    path = '/home/mikhail/Desktop/tickets'
+    path = '/usr/share/tickets/'
     names_list = set()
     if '--scan_all' in sys.argv:
         create_mapping(es, 'tickets')
@@ -97,4 +100,4 @@ if __name__ == '__main__':
                 if get_file_info(x)[2] > start_time and x not in names_list:
                     scan_doc(x)
                     names_list.add(x)
-            time.sleep(1)
+            time.sleep(600)
