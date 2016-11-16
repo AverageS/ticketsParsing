@@ -13,14 +13,20 @@ import logging
 
 FORMAT_NAMES = ['ip_host', 'ip_dest', 'port_dest', 'declaration']
 
-es = Elasticsearch([{'host': 'elasticsearch', 'port': 9200}])
+es = Elasticsearch([{'host': 'localhost', 'port': 9200}])
 def parse_first_table(table):
     data_rows = []
     for row in table.rows[1:]:
         for srcip in re.findall(r'\d+\.\d+\.\d+\.\d+/\d{2}|\d+\.\d+\.\d+\.\d+', row.cells[0].text):
             for dstip in re.findall(r'\d+\.\d+\.\d+\.\d+/\d{2}|\d+\.\d+\.\d+\.\d+', row.cells[1].text):
-                for dstport in re.findall(r'\d+', row.cells[2].text):
-                    data_rows.append([srcip, dstip,dstport,row.cells[3].text.encode('utf-8', 'surrogateescape').decode('utf-8', 'surrogateescape')])
+                for dstport in re.findall(r'(\d+\s*[-]\s*\d+)|(\d+)', row.cells[2].text):
+                    if dstport[1] != '':
+                        data_rows.append([srcip, dstip,dstport[1],row.cells[3].text])
+                    else:
+                        data_rows.append([srcip, dstip, dstport[0], row.cells[3].text])
+                        #numbers = list(map(int, dstport[0].replace(' ','').split('-')))
+                        #for i in range(numbers[0], numbers[1]):
+                        #    data_rows.append([srcip, dstip, str(i),row.cells[3].text])
     return data_rows
 
 def iterator(path):
@@ -32,8 +38,6 @@ def get_file_info(filename):
     last_folder = filename.split('/')[-2]
     ticket_type = last_folder[:3].encode('utf-8', 'surrogateescape').decode('utf8','surrogateescape')
     ticket_number = last_folder[3:].encode('utf-8', 'surrogateescape').decode('utf8','surrogateescape')
-#    ticket_type = last_folder[:3]
-#    ticket_number = last_folder[3:]
     doc_creation_date = os.path.getmtime(filename)
     return [ticket_type, ticket_number, doc_creation_date]
 
@@ -74,13 +78,14 @@ def scan_doc(filename):
     for el in dict_to_send_to_el:
         try:
             es.index(index='tickets', doc_type='first_table', body=el)
+            logging.error(filename)
         except:
             el['ticket_type'], el['ticket_number'] = 'CRQ', '0000000'
             es.index(index='tickets', doc_type='first_table', body=el)
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
-    path = '/usr/share/tickets/'
+    path = '/home/mikhail/Desktop/tickets'
     names_list = set()
     if '--scan_all' in sys.argv:
         create_mapping(es, 'tickets')
