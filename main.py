@@ -13,7 +13,7 @@ import logging
 
 FORMAT_NAMES = ['ip_host', 'ip_dest', 'port_dest', 'declaration']
 
-es = Elasticsearch([{'host': 'localhost', 'port': 9200}])
+es = Elasticsearch([{'host': 'elasticsearch', 'port': 9200}])
 def parse_first_table(table):
     data_rows = []
     for row in table.rows[1:]:
@@ -31,8 +31,9 @@ def parse_first_table(table):
 
 def iterator(path):
     for dirpath, dirnames, files in os.walk(path):
-        for f in fnmatch.filter(files, '*.docx'):
-            yield '/'.join([dirpath,f])
+        for file in files:
+            if file.endswith(('.docx', '.DOCX')):
+                yield '/'.join([dirpath,file])
 
 def get_file_info(filename):
     last_folder = filename.split('/')[-2]
@@ -75,17 +76,23 @@ def scan_doc(filename):
     except:
         return
     dict_to_send_to_el = format_table(table,filename)
+    counter = 0
     for el in dict_to_send_to_el:
         try:
             es.index(index='tickets', doc_type='first_table', body=el)
-            logging.error(filename)
+            counter += 1
         except:
             el['ticket_type'], el['ticket_number'] = 'CRQ', '0000000'
             es.index(index='tickets', doc_type='first_table', body=el)
+    if counter == 0:
+        error_msg = {'error': True,
+                     'file': filename,
+                     'added_time': int(round(time.time()*1000))}
+        es.index(index='tickets', doc_type='first_table', body=error_msg)
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
-    path = '/home/mikhail/Desktop/tickets'
+    path = '/usr/share/tickets'
     names_list = set()
     if '--scan_all' in sys.argv:
         create_mapping(es, 'tickets')
