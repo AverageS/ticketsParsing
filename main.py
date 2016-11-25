@@ -14,19 +14,31 @@ import logging
 FORMAT_NAMES = ['ip_host', 'ip_dest', 'port_dest', 'declaration']
 
 es = Elasticsearch([{'host': 'elasticsearch', 'port': 9200}])
+VPN = []
+
+with open('vpns', 'r') as fp:
+    [VPN.append(x.strip('\n')) for x in fp.readlines()]
+
+def ip_iterator(text):
+    iterable = re.findall(r'\d+\.\d+\.\d+\.\d+/\d{2}|\d+\.\d+\.\d+\.\d+', text)
+    if 'vpn' in text.lower():
+        iterable = VPN
+    for x in iterable:
+        yield x
+
+
+
+
 def parse_first_table(table):
     data_rows = []
     for row in table.rows[1:]:
-        for srcip in re.findall(r'\d+\.\d+\.\d+\.\d+/\d{2}|\d+\.\d+\.\d+\.\d+', row.cells[0].text):
-            for dstip in re.findall(r'\d+\.\d+\.\d+\.\d+/\d{2}|\d+\.\d+\.\d+\.\d+', row.cells[1].text):
+        for srcip in ip_iterator(row.cells[0].text):
+            for dstip in ip_iterator(row.cells[1].text):
                 for dstport in re.findall(r'(\d+\s*[-]\s*\d+)|(\d+)', row.cells[2].text):
                     if dstport[1] != '':
                         data_rows.append([srcip, dstip,dstport[1],row.cells[3].text])
                     else:
                         data_rows.append([srcip, dstip, dstport[0], row.cells[3].text])
-                        #numbers = list(map(int, dstport[0].replace(' ','').split('-')))
-                        #for i in range(numbers[0], numbers[1]):
-                        #    data_rows.append([srcip, dstip, str(i),row.cells[3].text])
     return data_rows
 
 def iterator(path):
@@ -62,7 +74,7 @@ def error_catching(func):
     def wrapper(filename):
         try:
             func(filename)
-            logging.info(filename + '\t sent')
+            logging.info('SENT \t' + filename)
         except Exception as e:
             logging.error('\t'.join([filename, str(e)]))
     return wrapper
@@ -73,8 +85,10 @@ def scan_doc(filename):
     doc = Document(filename)
     try:
         table = parse_first_table(doc.tables[1])
+        if table == []:
+            raise Exception
     except:
-        return
+        raise Exception
     dict_to_send_to_el = format_table(table,filename)
     counter = 0
     for el in dict_to_send_to_el:
@@ -82,6 +96,7 @@ def scan_doc(filename):
             es.index(index='tickets', doc_type='first_table', body=el)
             counter += 1
         except:
+            pass
             el['ticket_type'], el['ticket_number'] = 'CRQ', '0000000'
             es.index(index='tickets', doc_type='first_table', body=el)
     if counter == 0:
@@ -90,9 +105,10 @@ def scan_doc(filename):
                      'added_time': int(round(time.time()*1000))}
         es.index(index='tickets', doc_type='first_table', body=error_msg)
 
+
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
-    path = '/usr/share/tickets'
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    path = '/home/mikhail/ticketsyo'
     names_list = set()
     if '--scan_all' in sys.argv:
         create_mapping(es, 'tickets')
