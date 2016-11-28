@@ -29,7 +29,7 @@ MAPPING = {
                 "added_time":  { "type": "date"},
                 "ip_host": {"type" : "ip"},
                 "ip_dest": {"type" : "ip"},
-                "port_dest": {"type" : "integer"},
+                "port_dest": {"type" : "string"},
             }
         }
     }
