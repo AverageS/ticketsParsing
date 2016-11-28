@@ -85,8 +85,6 @@ def scan_doc(filename):
     doc = Document(filename)
     try:
         table = parse_first_table(doc.tables[1])
-        if table == []:
-            raise Exception
     except:
         raise Exception
     dict_to_send_to_el = format_table(table,filename)
@@ -97,17 +95,11 @@ def scan_doc(filename):
             counter += 1
         except:
             pass
-            el['ticket_type'], el['ticket_number'] = 'CRQ', '0000000'
-            es.index(index='tickets', doc_type='first_table', body=el)
     if counter == 0:
-        error_msg = {'error': True,
-                     'file': filename,
-                     'added_time': int(round(time.time()*1000))}
-        es.index(index='tickets', doc_type='first_table', body=error_msg)
-
+        raise Exception
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
     path = '/home/mikhail/ticketsyo'
     names_list = set()
     if '--scan_all' in sys.argv:
