@@ -23,8 +23,7 @@ def ip_iterator(text):
     iterable = re.findall(r'\d+\.\d+\.\d+\.\d+/\d{2}|\d+\.\d+\.\d+\.\d+', text)
     if 'vpn' in text.lower():
         iterable = VPN
-    for x in iterable:
-        yield x
+    return x
 
 
 
@@ -47,19 +46,19 @@ def send_error(column_number, column_string):
         'column': column_number,
         'column_string': column_string,
     }
-    es.index(index='errors', doc_type='table', body=element)
+    es.index(index='errors', type='table', body=element)
 
 def scan_broken_table(table):
     rows = table.rows
-    for _ in range(1):
-        if len(re.findall(r'\d+\.\d+\.\d+\.\d+/\d{2}|\d+\.\d+\.\d+\.\d+', rows[1].cells[0].text)) == 0:
-            send_error(0, rows[1].cells[0].text)
+    for row in rows:
+        if len(ip_iterator(row.cells[0].text)) == 0:
+            send_error(0, row.cells[0].text)
             break
-        if len(re.findall(r'\d+\.\d+\.\d+\.\d+/\d{2}|\d+\.\d+\.\d+\.\d+', rows[1].cells[1].text)) == 0:
-            send_error(1, rows[1].cells[1].text)
+        if len(ip_iterator(row.cells[1].text)) == 0:
+            send_error(1, row.cells[1].text)
             break
         if len(re.findall(r'(\d+\s*[-]\s*\d+)|(\d+)', rows[1].cells[2].text)) == 0:
-            send_error(2, rows[1].cells[2].text)
+            send_error(2, row.cells[2].text)
             break
     return True
 
