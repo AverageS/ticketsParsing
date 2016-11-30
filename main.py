@@ -47,7 +47,7 @@ def send_error(column_number, column_string):
         'column': column_number,
         'column_string': column_string,
     }
-    es.index(index='errors', type='table', body=element)
+    es.index(index='errors', doc_type='table', body=element)
 
 def scan_broken_table(table):
     rows = table.rows
