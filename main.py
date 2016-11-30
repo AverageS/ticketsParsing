@@ -41,6 +41,28 @@ def parse_first_table(table):
                         data_rows.append([srcip, dstip, dstport[0], row.cells[3].text])
     return data_rows
 
+def send_error(column_number, column_string):
+    element = {
+        'added_time': int(round(time.time() * 1000)),
+        'column': column_number,
+        'column_string': column_string,
+    }
+    es.index(index='errors', type='table', body=element)
+
+def scan_broken_table(table):
+    rows = table.rows
+    for _ in range(1):
+        if len(re.findall(r'\d+\.\d+\.\d+\.\d+/\d{2}|\d+\.\d+\.\d+\.\d+', rows[1].cells[0].text)) == 0:
+            send_error(0, rows[1].cells[0].text)
+            break
+        if len(re.findall(r'\d+\.\d+\.\d+\.\d+/\d{2}|\d+\.\d+\.\d+\.\d+', rows[1].cells[1].text)) == 0:
+            send_error(1, rows[1].cells[1].text)
+            break
+        if len(re.findall(r'(\d+\s*[-]\s*\d+)|(\d+)', rows[1].cells[2].text)) == 0:
+            send_error(2, rows[1].cells[2].text)
+            break
+    return True
+
 def iterator(path):
     for dirpath, dirnames, files in os.walk(path):
         for file in files:
@@ -86,7 +108,7 @@ def scan_doc(filename):
     try:
         table = parse_first_table(doc.tables[1])
     except:
-        raise Exception
+        raise Exception('parsing table_error')
     dict_to_send_to_el = format_table(table,filename)
     counter = 0
     for el in dict_to_send_to_el:
@@ -96,11 +118,12 @@ def scan_doc(filename):
         except:
             pass
     if counter == 0:
-        raise Exception
+        scan_broken_table(doc.tables[1])
+        raise Exception('Table is empty')
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
-    path = '/home/mikhail/ticketsyo'
+    path = '/usr/share/tickets'
     names_list = set()
     if '--scan_all' in sys.argv:
         create_mapping(es, 'tickets')
