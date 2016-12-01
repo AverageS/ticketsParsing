@@ -1,6 +1,5 @@
 import re
 import os
-import fnmatch
 from elasticsearch import Elasticsearch
 import time
 from docx import Document
@@ -23,7 +22,7 @@ def ip_iterator(text):
     iterable = re.findall(r'\d+\.\d+\.\d+\.\d+/\d{2}|\d+\.\d+\.\d+\.\d+', text)
     if 'vpn' in text.lower():
         iterable = VPN
-    return x
+    return iterable
 
 
 
@@ -46,20 +45,23 @@ def send_error(column_number, column_string):
         'column': column_number,
         'column_string': column_string,
     }
-    es.index(index='errors', type='table', body=element)
+    es.index(index='errors', doc_type='table', body=element)
 
 def scan_broken_table(table):
     rows = table.rows
     for row in rows:
         if len(ip_iterator(row.cells[0].text)) == 0:
             send_error(0, row.cells[0].text)
-            break
+            continue
         if len(ip_iterator(row.cells[1].text)) == 0:
             send_error(1, row.cells[1].text)
-            break
+            continue
         if len(re.findall(r'(\d+\s*[-]\s*\d+)|(\d+)', rows[1].cells[2].text)) == 0:
             send_error(2, row.cells[2].text)
-            break
+            continue
+    element = {'added_time': int(round(time.time() * 1000)),
+               'table_len': len(rows) - 1}
+    es.index(index='errors', doc_type='table', body = element)
     return True
 
 def iterator(path):
@@ -87,7 +89,7 @@ def format_table(table, filename):
         el['host_network'], el['dst_network'] = str(src_ip_network), str(dst_ip_network)
         el['dst_network_description'] = networks.check(dst_ip_network) or 'UNKNOWN'
         el['ticket_type'], el['ticket_number'] = ticket_type, ticket_number
-        port = int(el['port_dest'])
+        port = el['port_dest']
         el['ip_port_triple'] = ':'.join(list(map(str, [src_ip, dst_ip, port])))
     return dict_table
 
@@ -115,7 +117,12 @@ def scan_doc(filename):
             es.index(index='tickets', doc_type='first_table', body=el)
             counter += 1
         except:
-            pass
+            try:
+                el['ticket_type'], el['ticket_number'] = 'CRQ', '0000000'
+                es.index(index='tickets', doc_type='first_table', body=el)
+                counter += 1
+            except:
+                pass
     if counter == 0:
         scan_broken_table(doc.tables[1])
         raise Exception('Table is empty')
