@@ -36,7 +36,7 @@ MAPPING = {
 }
 def create_mapping(es_instance, index_name):
     try:
-        es.indices.delete(index=index_name)
+        es_instance.indices.delete(index=index_name)
     except:
         pass
     es_instance.indices.create(index=index_name, ignore=400, body=MAPPING)

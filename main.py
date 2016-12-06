@@ -136,6 +136,7 @@ if __name__ == '__main__':
     names_list = set()
     if '--scan_all' in sys.argv:
         create_mapping(es, 'tickets')
+        create_mapping(es, 'errors')
         for x in iterator(path):
             scan_doc(x)
             names_list.add(x)
