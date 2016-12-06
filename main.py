@@ -47,7 +47,7 @@ def send_error(column_number, column_string):
     }
     es.index(index='errors', doc_type='table', body=element)
 
-def scan_broken_table(table):
+def scan_broken_table(table, fileinfo=('CRQ', '000000')):
     rows = table.rows
     for row in rows:
         if len(ip_iterator(row.cells[0].text)) == 0:
@@ -60,7 +60,9 @@ def scan_broken_table(table):
             send_error(2, row.cells[2].text)
             continue
     element = {'added_time': int(round(time.time() * 1000)),
-               'table_len': len(rows) - 1}
+               'table_len': len(rows) - 1,
+               'ticket_type': fileinfo[0],
+               'ticket_number': fileinfo[1]}
     es.index(index='errors', doc_type='table', body = element)
     return True
 
@@ -125,7 +127,8 @@ def scan_doc(filename):
                 pass
     if counter == 0:
         scan_broken_table(doc.tables[1])
-        raise Exception('Table is empty')
+        raise Exception('Table is corrupted')
+    scan_broken_table(doc.tables[1], (el['ticket_type'], el['ticket_number']))
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
