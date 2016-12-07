@@ -39,9 +39,11 @@ def parse_first_table(table):
                         data_rows.append([srcip, dstip, dstport[0], row.cells[3].text])
     return data_rows
 
-def send_error(column_number, column_string):
+def send_error(column_number, column_string, fileinfo):
     element = {
         'added_time': int(round(time.time() * 1000)),
+        'ticket_type': fileinfo[0],
+        'ticket_number': fileinfo[1],
         'column': column_number,
         'column_string': column_string,
     }
@@ -51,19 +53,14 @@ def scan_broken_table(table, fileinfo=('CRQ', '000000')):
     rows = table.rows
     for row in rows:
         if len(ip_iterator(row.cells[0].text)) == 0:
-            send_error(0, row.cells[0].text)
+            send_error(0, row.cells[0].text,fileinfo)
             continue
         if len(ip_iterator(row.cells[1].text)) == 0:
-            send_error(1, row.cells[1].text)
+            send_error(1, row.cells[1].text,fileinfo)
             continue
         if len(re.findall(r'(\d+\s*[-]\s*\d+)|(\d+)', rows[1].cells[2].text)) == 0:
-            send_error(2, row.cells[2].text)
+            send_error(2, row.cells[2].text, fileinfo)
             continue
-    element = {'added_time': int(round(time.time() * 1000)),
-               'table_len': len(rows) - 1,
-               'ticket_type': fileinfo[0],
-               'ticket_number': fileinfo[1]}
-    es.index(index='errors', doc_type='table', body = element)
     return True
 
 def iterator(path):
