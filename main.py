@@ -50,7 +50,7 @@ def send_error(column_number, column_string, fileinfo):
     es.index(index='errors', doc_type='table', body=element)
 
 def scan_broken_table(table, fileinfo=('CRQ', '000000')):
-    rows = table.rows
+    rows = table.rows[1:]
     for row in rows:
         if len(ip_iterator(row.cells[0].text)) == 0:
             send_error(0, row.cells[0].text,fileinfo)
