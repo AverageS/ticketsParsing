@@ -58,7 +58,7 @@ def scan_broken_table(table, fileinfo=('CRQ', '000000')):
         if len(ip_iterator(row.cells[1].text)) == 0:
             send_error(1, row.cells[1].text,fileinfo)
             continue
-        if len(re.findall(r'(\d+\s*[-]\s*\d+)|(\d+)', rows[1].cells[2].text)) == 0:
+        if len(re.findall(r'(\d+\s*[-]\s*\d+)|(\d+)', row.cells[2].text)) == 0:
             send_error(2, row.cells[2].text, fileinfo)
             continue
     return True
