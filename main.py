@@ -52,6 +52,8 @@ def send_error(column_number, column_string, fileinfo):
 def scan_broken_table(table, fileinfo=('CRQ', '000000')):
     rows = table.rows[1:]
     for row in rows:
+        if ''.join(x.text for x in row.cells[:3]) == '':
+            continue
         if len(ip_iterator(row.cells[0].text)) == 0:
             send_error(0, row.cells[0].text,fileinfo)
             continue
