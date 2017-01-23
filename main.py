@@ -8,23 +8,23 @@ import networks
 import netaddr
 import sys
 import logging
+import zipfile
 
 
 FORMAT_NAMES = ['ip_host', 'ip_dest', 'port_dest', 'declaration']
 
-es = Elasticsearch([{'host': 'elasticsearch', 'port': 9200}])
+es = Elasticsearch([{'host': 'localhost', 'port': 9200}])
 VPN = []
 
 with open('vpns', 'r') as fp:
     [VPN.append(x.strip('\n')) for x in fp.readlines()]
+
 
 def ip_iterator(text):
     iterable = re.findall(r'\d+\.\d+\.\d+\.\d+/\d{2}|\d+\.\d+\.\d+\.\d+', text)
     if 'vpn' in text.lower():
         iterable = VPN
     return iterable
-
-
 
 
 def parse_first_table(table):
@@ -39,6 +39,7 @@ def parse_first_table(table):
                         data_rows.append([srcip, dstip, dstport[0], row.cells[3].text])
     return data_rows
 
+
 def send_error(column_number, column_string, fileinfo):
     element = {
         'added_time': int(round(time.time() * 1000)),
@@ -48,6 +49,7 @@ def send_error(column_number, column_string, fileinfo):
         'column_string': column_string,
     }
     es.index(index='errors', doc_type='table', body=element)
+
 
 def scan_broken_table(table, fileinfo=('CRQ', '000000')):
     rows = table.rows[1:]
@@ -65,11 +67,18 @@ def scan_broken_table(table, fileinfo=('CRQ', '000000')):
             continue
     return True
 
+
 def iterator(path):
+    zip_to_iterate = []
     for dirpath, dirnames, files in os.walk(path):
         for file in files:
             if file.endswith(('.docx', '.DOCX')):
                 yield '/'.join([dirpath,file])
+            if file.endswith('.zip'):
+                zip_to_iterate.append('/'.join([dirpath,file]))
+    for zip in zip_to_iterate:
+        yield zip
+
 
 def get_file_info(filename):
     last_folder = filename.split('/')[-2]
@@ -77,6 +86,7 @@ def get_file_info(filename):
     ticket_number = last_folder[3:].encode('utf-8', 'surrogateescape').decode('utf8','surrogateescape')
     doc_creation_date = os.path.getmtime(filename)
     return [ticket_type, ticket_number, doc_creation_date]
+
 
 def format_table(table, filename):
     dict_table = [dict([tpl for tpl in zip(FORMAT_NAMES, row)]) for row in table]
@@ -93,6 +103,7 @@ def format_table(table, filename):
         port = el['port_dest']
         el['ip_port_triple'] = ':'.join(list(map(str, [src_ip, dst_ip, port])))
     return dict_table
+
 
 def error_catching(func):
     def wrapper(filename):
@@ -129,14 +140,22 @@ def scan_doc(filename):
         raise Exception('Table is corrupted')
     scan_broken_table(doc.tables[1], (el['ticket_type'], el['ticket_number']))
 
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
     path = '/usr/share/tickets'
+    #path = '/home/mikhail/Documents/tickets13.01.17/30-07-2016/'
     names_list = set()
     if '--scan_all' in sys.argv:
         create_mapping(es, 'tickets')
         create_mapping(es, 'errors')
         for x in iterator(path):
+            if x.endswith('.zip'):
+                with zipfile.ZipFile(x) as myzip:
+                    archive_files = [x for x in myzip.namelist() if x.endswith(('.docx', '.DOCX'))]
+                    for file in archive_files:
+                        if file not in names_list:
+                            myzip.extract(file)
             scan_doc(x)
             names_list.add(x)
         while True:
