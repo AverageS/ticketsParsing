@@ -143,25 +143,42 @@ def scan_doc(filename):
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
-    path = '/usr/share/tickets'
-    #path = '/home/mikhail/Documents/tickets13.01.17/30-07-2016/'
+    #path = '/usr/share/tickets'
+    path = '/home/mikhail/Documents/tickets13.01.17/30-07-2016/'
     names_list = set()
     if '--scan_all' in sys.argv:
         create_mapping(es, 'tickets')
         create_mapping(es, 'errors')
         for x in iterator(path):
+            filename = x
             if x.endswith('.zip'):
                 with zipfile.ZipFile(x) as myzip:
                     archive_files = [x for x in myzip.namelist() if x.endswith(('.docx', '.DOCX'))]
                     for file in archive_files:
-                        if file not in names_list:
-                            myzip.extract(file)
-            scan_doc(x)
-            names_list.add(x)
+                        if True not in [file in x for x in names_list]:
+                            folder = x[:x.rfind('/') + 1]
+                            myzip.extract(file, path=folder)
+                            filename = folder + file
+                            scan_doc(filename)
+                            names_list.add(filename)
+            else:
+                scan_doc(filename)
+                names_list.add(x)
         while True:
             for x in iterator(path):
-                if x not in names_list:
-                    scan_doc(x)
+                filename = x
+                if x.endswith('.zip'):
+                    with zipfile.ZipFile(x) as myzip:
+                        archive_files = [x for x in myzip.namelist() if x.endswith(('.docx', '.DOCX'))]
+                        for file in archive_files:
+                            if True not in [file in x for x in names_list]:
+                                folder = x[:x.rfind('/') + 1]
+                                myzip.extract(file, path=folder)
+                                filename = folder + file
+                                scan_doc(filename)
+                                names_list.add(filename)
+                else:
+                    scan_doc(filename)
                     names_list.add(x)
             time.sleep(600)
     else:
